@@ -56,4 +56,14 @@ public class EtlController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, Object>> getProgressStatus() {
+        long currentCount = repository.count();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("processedRecords", currentCount);
+
+        return ResponseEntity.ok(response);
+    }
 }
