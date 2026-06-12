@@ -30,8 +30,7 @@ public class BatchConfig {
                 .resource(new FileSystemResource("uploads/temp.csv"))
                 .linesToSkip(1) // Sin cabecera
                 .delimited()
-                // Nombramiento de columnas
-                .names("trackingId", "vehicleId", "eventTimestamp", "status", "latitude", "longitude", "temperatureCelsius")
+                .names("tripId", "vehicleVin", "driverId", "timestampUtc", "odometerKm", "fuelConsumedL", "vehicleStatus", "routeCode")
                 .fieldSetMapper(new BeanWrapperFieldSetMapper<>() {{
                     setTargetType(TelemetryCsvRecord.class);
                 }})

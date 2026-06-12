@@ -11,27 +11,31 @@ import java.time.format.DateTimeFormatter;
 @Component
 public class TelemetryItemProcessor implements ItemProcessor<TelemetryCsvRecord, LogiflowTelemetry> {
 
-    // Se deja en formato ISO 8601 por defecto
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME;
+    // Formato de fecha para el mapeo
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Override
     public LogiflowTelemetry process(TelemetryCsvRecord item) throws Exception {
+
+        if (item.getVehicleVin() == null || item.getVehicleVin().trim().isEmpty()) {
+            return null;
+        }
+
         try {
-            // Se transforman los "Strings" crudos del CSV en tipos de datos estrictos para la BD.
             return LogiflowTelemetry.builder()
                     .jobId("TEMP_LOTE_1")
-                    .trackingId(item.getTrackingId())
-                    .vehicleId(item.getVehicleId())
-                    .eventTimestamp(LocalDateTime.parse(item.getEventTimestamp(), FORMATTER))
-                    .status(item.getStatus())
-                    .latitude(Double.parseDouble(item.getLatitude()))
-                    .longitude(Double.parseDouble(item.getLongitude()))
-                    .temperatureCelsius(Double.parseDouble(item.getTemperatureCelsius()))
+                    .tripId(item.getTripId())
+                    .vehicleVin(item.getVehicleVin())
+                    .driverId(item.getDriverId())
+                    .timestampUtc(LocalDateTime.parse(item.getTimestampUtc(), FORMATTER))
+                    .odometerKm(Double.parseDouble(item.getOdometerKm()))
+                    .fuelConsumedL(Double.parseDouble(item.getFuelConsumedL()))
+                    .vehicleStatus(item.getVehicleStatus())
+                    .routeCode(item.getRouteCode())
                     .build();
 
         } catch (Exception e) {
-            // Si el archivo viene con una letra donde va un número, el sistema capturará el error.
-            System.err.println("Fila descartada por datos corruptos (Tracking ID: " + item.getTrackingId() + ")");
+            System.err.println("Error procesando registro VIN " + item.getVehicleVin() + ": " + e.getMessage());
             return null;
         }
     }

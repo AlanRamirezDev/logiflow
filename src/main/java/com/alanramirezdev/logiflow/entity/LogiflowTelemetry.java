@@ -23,29 +23,33 @@ public class LogiflowTelemetry {
     @Column(name = "job_id", nullable = false)
     private String jobId;
 
-    @Column(name = "tracking_id", nullable = false)
-    private String trackingId;
+    @Column(name = "trip_id")
+    private String tripId;
 
-    @Column(name = "vehicle_id", nullable = false)
-    private String vehicleId;
+    @Column(name = "vehicle_vin")
+    private String vehicleVin;
 
-    @Column(name = "event_timestamp", nullable = false)
-    private LocalDateTime eventTimestamp;
+    @Column(name = "driver_id")
+    private String driverId;
 
-    @Column(nullable = false)
-    private String status;
+    @Column(name = "timestamp_utc")
+    private LocalDateTime timestampUtc;
 
-    private Double latitude;
+    @Column(name = "odometer_km")
+    private Double odometerKm;
 
-    private Double longitude;
+    @Column(name = "fuel_consumed_l")
+    private Double fuelConsumedL;
 
-    @Column(name = "temperature_celsius")
-    private Double temperatureCelsius;
+    @Column(name = "vehicle_status")
+    private String vehicleStatus;
+
+    @Column(name = "route_code")
+    private String routeCode;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    // Esta función se ejecuta automáticamente justo antes de guardar en BD
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
