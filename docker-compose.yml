@@ -1,0 +1,11 @@
+services:
+  postgres-etl:
+    image: postgres:17
+    container_name: logiflow-local-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: logiflow_db
+    ports:
+      - "5435:5432"
+    restart: unless-stopped
