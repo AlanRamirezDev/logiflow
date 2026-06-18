@@ -88,12 +88,18 @@ public class EtlController {
         return ResponseEntity.ok(response);
     }
 
-    // Endpoint para consultar el progreso
+    // Endpoint para consultar el progreso y la salud del proceso
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getProgressStatus() {
         long currentCount = repository.count();
         Map<String, Object> response = new HashMap<>();
+
         response.put("processedRecords", currentCount);
+
+        // Verificación para saber si el motor está trabajando
+        boolean isRunning = isJobRunning();
+        response.put("isRunning", isRunning);
+
         return ResponseEntity.ok(response);
     }
 
