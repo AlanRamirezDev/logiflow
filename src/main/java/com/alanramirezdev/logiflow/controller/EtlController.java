@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,11 +25,13 @@ public class EtlController {
     private final EtlService etlService;
     private final LogiflowTelemetryRepository repository;
     private final JobExplorer jobExplorer;
+    private final JdbcTemplate jdbcTemplate;
 
-    public EtlController(EtlService etlService, LogiflowTelemetryRepository repository, JobExplorer jobExplorer) {
+    public EtlController(EtlService etlService, LogiflowTelemetryRepository repository, JobExplorer jobExplorer, JdbcTemplate jdbcTemplate) {
         this.etlService = etlService;
         this.repository = repository;
         this.jobExplorer = jobExplorer;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     // Metodo auxiliar para verificar si hay un lote corriendo
@@ -69,16 +72,18 @@ public class EtlController {
     @DeleteMapping("/reset")
     public ResponseEntity<Map<String, String>> resetDatabase() {
 
-        if (isJobRunning()) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "No se puede reiniciar la base de datos mientras un lote está en proceso.");
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
-        }
-
+        // Limpieza de datos
         repository.deleteAll();
 
+        // Purgar el historial interno
+        try {
+            jdbcTemplate.execute("TRUNCATE TABLE BATCH_JOB_EXECUTION_CONTEXT, BATCH_JOB_EXECUTION_PARAMS, BATCH_STEP_EXECUTION_CONTEXT, BATCH_STEP_EXECUTION, BATCH_JOB_EXECUTION, BATCH_JOB_INSTANCE CASCADE;");
+        } catch (Exception e) {
+            System.err.println("Advertencia al purgar metadatos de Batch: " + e.getMessage());
+        }
+
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Base de datos reiniciada correctamente. Lista para nueva demo.");
+        response.put("message", "Hard Reset exitoso. Base de datos y metadatos internos reiniciados.");
 
         return ResponseEntity.ok(response);
     }
@@ -97,5 +102,36 @@ public class EtlController {
     public ResponseEntity<List<LogiflowTelemetry>> getPreviewData() {
         List<LogiflowTelemetry> recentRecords = repository.findTop5ByOrderByIdDesc();
         return ResponseEntity.ok(recentRecords);
+    }
+
+    // Endpoint para consultas SQL reales desde la terminal
+    @PostMapping("/query")
+    public ResponseEntity<?> executeDynamicQuery(@RequestBody Map<String, String> payload) {
+        String sql = payload.get("query");
+
+        if (sql == null || sql.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Consulta vacía."));
+        }
+
+        String upperSql = sql.toUpperCase().trim();
+
+        // Segunda capa de seguridad: Rechaza cualquier cosa que no sea lectura
+        if (!upperSql.startsWith("SELECT")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Bloqueo de seguridad del servidor: Solo se permiten consultas de lectura (SELECT)."));
+        }
+
+        // Se inyecta un LIMIT 15 de protección si el usuario hace un SELECT * masivo para no saturar la red
+        if (!upperSql.contains("LIMIT")) {
+            sql = sql.replace(";", "") + " LIMIT 15;";
+        }
+
+        try {
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql);
+            return ResponseEntity.ok(results);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Error de sintaxis SQL en PostgreSQL: " + e.getMessage()));
+        }
     }
 }
