@@ -97,11 +97,15 @@ public class EtlController {
      */
     @DeleteMapping("/reset")
     public ResponseEntity<Map<String, String>> resetDatabase() {
+
+        if (isJobRunning()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    Map.of("error", "Denegado: El motor sigue procesando datos en segundo plano. Por favor espere unos segundos a que finalice el lote actual antes de reiniciar.")
+            );
+        }
+
         repository.deleteAll();
 
-        /**
-         * Purgar el historial interno
-         */
         try {
             jdbcTemplate.execute("TRUNCATE TABLE BATCH_JOB_EXECUTION_CONTEXT, BATCH_JOB_EXECUTION_PARAMS, BATCH_STEP_EXECUTION_CONTEXT, BATCH_STEP_EXECUTION, BATCH_JOB_EXECUTION, BATCH_JOB_INSTANCE CASCADE;");
         } catch (Exception e) {
