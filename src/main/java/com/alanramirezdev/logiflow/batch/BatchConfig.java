@@ -5,6 +5,7 @@ import com.alanramirezdev.logiflow.entity.LogiflowTelemetry;
 import com.alanramirezdev.logiflow.repository.LogiflowTelemetryRepository;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -14,31 +15,49 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.FlatFileParseException;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.support.TaskExecutorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import java.util.concurrent.Executors;
 
 @Configuration
 public class BatchConfig {
 
-    // LECTOR:
+    /**
+     * Cada ejecución del Chunk se procesa de manera concurrente sin agotar el pool de hilos físicos del servidor.
+     */
     @Bean
-    public FlatFileItemReader<TelemetryCsvRecord> reader() {
+    public TaskExecutor taskExecutor() {
+        return new TaskExecutorAdapter(Executors.newVirtualThreadPerTaskExecutor());
+    }
+
+    /**
+     * Se usa @StepScope para permitir la resolución dinámica de parámetros en tiempo de ejecución.
+     */
+    @Bean
+    @StepScope
+    public FlatFileItemReader<TelemetryCsvRecord> reader(@Value("#{jobParameters['filePath']}") String filePath) {
         return new FlatFileItemReaderBuilder<TelemetryCsvRecord>()
                 .name("telemetryCsvReader")
-                // Se lee de un archivo temporal en disco. El controlador guardará el archivo aquí.
-                .resource(new FileSystemResource("uploads/temp.csv"))
-                .linesToSkip(1) // Sin cabecera
+                .resource(new FileSystemResource(filePath))
+                .linesToSkip(1)
                 .delimited()
                 .names("tripId", "vehicleVin", "driverId", "timestampUtc", "odometerKm", "fuelConsumedL", "vehicleStatus", "routeCode")
                 .fieldSetMapper(new BeanWrapperFieldSetMapper<>() {{
                     setTargetType(TelemetryCsvRecord.class);
                 }})
+                .saveState(false)
                 .build();
     }
 
-    // ESCRITOR:
+    /**
+     * Procesamiento por lotes.
+     */
     @Bean
     public RepositoryItemWriter<LogiflowTelemetry> writer(LogiflowTelemetryRepository repository) {
         return new RepositoryItemWriterBuilder<LogiflowTelemetry>()
@@ -47,27 +66,29 @@ public class BatchConfig {
                 .build();
     }
 
-    // STEP
+    /**
+     * Se inyecta el taskExecutor basado en hilos virtuales
+     */
     @Bean
     public Step importTelemetryStep(JobRepository jobRepository,
                                     PlatformTransactionManager transactionManager,
                                     FlatFileItemReader<TelemetryCsvRecord> reader,
                                     TelemetryItemProcessor processor,
-                                    RepositoryItemWriter<LogiflowTelemetry> writer) {
+                                    RepositoryItemWriter<LogiflowTelemetry> writer,
+                                    TaskExecutor taskExecutor) {
         return new StepBuilder("importTelemetryStep", jobRepository)
-                // Solo bloques de 500 registros.
                 .<TelemetryCsvRecord, LogiflowTelemetry>chunk(500, transactionManager)
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)
+                .taskExecutor(taskExecutor)
                 .faultTolerant()
-                .skip(FlatFileParseException.class) // Ignora errores de formato en el CSV
-                .skip(Exception.class) // Ignora fallos de conversión de tipos
+                .skip(FlatFileParseException.class)
+                .skip(Exception.class)
                 .skipLimit(500)
                 .build();
     }
 
-    // JOB
     @Bean
     public Job importTelemetryJob(JobRepository jobRepository, Step importTelemetryStep) {
         return new JobBuilder("importTelemetryJob", jobRepository)

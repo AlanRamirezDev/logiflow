@@ -8,7 +8,9 @@ import java.util.List;
 @Repository
 public interface LogiflowTelemetryRepository extends JpaRepository<LogiflowTelemetry, Long> {
 
-    // Metodo que construye automáticamente por el nombre
+    /**
+     * Recupera los últimos 5 registros insertados para la vista previa del frontend.
+     */
     List<LogiflowTelemetry> findTop5ByOrderByIdDesc();
 
 }

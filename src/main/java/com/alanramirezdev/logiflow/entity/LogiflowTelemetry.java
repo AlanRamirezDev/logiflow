@@ -3,21 +3,36 @@ package com.alanramirezdev.logiflow.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-@Data
+/**
+ * Se remueve @Data para evitar la generación insegura de equals/hashCode en contextos JPA.
+ */
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "logiflow_telemetry")
+@Table(
+        name = "logiflow_telemetry",
+        indexes = {
+                @Index(name = "idx_telemetry_status", columnList = "vehicle_status"),
+                @Index(name = "idx_telemetry_vin", columnList = "vehicle_vin")
+        }
+)
 public class LogiflowTelemetry {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /* *
+     * Habilita el JDBC Batching
+     */
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "telemetry_seq")
+    @SequenceGenerator(name = "telemetry_seq", sequenceName = "logiflow_telemetry_seq", allocationSize = 500)
     private Long id;
 
     @Column(name = "job_id", nullable = false)

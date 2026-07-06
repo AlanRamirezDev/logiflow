@@ -1,11 +1,22 @@
 package com.alanramirezdev.logiflow.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
-@Data
+/**
+ * Se opta por utilizar anotaciones granulares de Lombok en lugar de @Data para evitar la
+ * generación de métodos equals() y hashCode()
+ */
+@Getter
+@Setter
+@ToString
 public class TelemetryCsvRecord {
-    // Todos los campos se reciben como String inicialmente para evitar que un error de formato
-    // en el CSV rompa la lectura completa del archivo. La validación se hará después.
+
+    /**
+     * Todos los campos se mantienen como String para garantizar la supervivencia del Reader
+     * ante archivos corruptos.
+     */
     private String tripId;
     private String vehicleVin;
     private String driverId;
